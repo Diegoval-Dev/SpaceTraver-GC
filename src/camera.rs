@@ -18,6 +18,18 @@ impl Camera {
         }
     }
 
+    pub fn forward(&self) -> Vec3 {
+        (self.center - self.eye).normalize()
+    }
+
+    pub fn right(&self) -> Vec3 {
+        self.forward().cross(&self.up).normalize()
+    }
+
+    pub fn up(&self) -> Vec3 {
+        self.right().cross(&self.forward()).normalize()
+    }
+
     pub fn basis_change(&self, vector: &Vec3) -> Vec3 {
         let forward = (self.center - self.eye).normalize();
         let right = forward.cross(&self.up).normalize();

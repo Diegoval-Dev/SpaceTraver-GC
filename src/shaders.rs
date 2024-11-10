@@ -383,7 +383,27 @@ pub fn saturn_rings_shader(fragment: &Fragment, uniforms: &Uniforms) -> Color {
   }
 }
 
+pub fn spaceship_shader(fragment: &Fragment, _uniforms: &Uniforms) -> Color {
+    // Colores base
+    let color_light_gray = Color::new(180, 180, 180); // Gris claro
+    let color_dark_gray = Color::new(120, 120, 120);  // Gris oscuro
 
+    // Crear una variación simple basada en la posición del fragmento para dar textura
+    let x = fragment.vertex_position.x;
+    let y = fragment.vertex_position.y;
+
+    // Usar una función para variar el color y simular textura
+    let noise_pattern = ((x * 10.0).sin() * (y * 10.0).cos()).abs();
+
+    // Interpolación de colores basada en el patrón de ruido
+    let base_color = if noise_pattern > 0.5 {
+        color_dark_gray
+    } else {
+        color_light_gray
+    };
+
+    base_color
+}
 
 
 
