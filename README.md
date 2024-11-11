@@ -139,3 +139,9 @@ Las contribuciones son bienvenidas. Puedes abrir un issue o hacer un pull reques
 ## 📝 Licencia
 
 Este proyecto está bajo la Licencia MIT. Puedes ver los detalles en el archivo LICENSE.
+
+## 📹Video
+
+
+https://github.com/user-attachments/assets/29bbdc73-55ca-4449-b641-bdfad6799f5a
+
