@@ -1,8 +1,8 @@
+use image::io::Reader as ImageReader;
 use minifb::{Key, Window, WindowOptions};
-use nalgebra_glm::{look_at, perspective, Mat4, Vec3};
+use nalgebra_glm::{look_at, perspective, Mat4, Vec3, Vec2};
 use std::f32::consts::PI;
 use std::time::Duration;
-use image::io::Reader as ImageReader;
 
 mod camera;
 mod color;
@@ -18,7 +18,7 @@ use framebuffer::Framebuffer;
 use obj::Obj;
 use shaders::{
     earth_shader, fragment_shader, jupiter_shader, mars_shader, moon_shader, rocky_planet_shader,
-    saturn_rings_shader, saturn_shader, sun_shader, venus_shader, vertex_shader,spaceship_shader
+    saturn_rings_shader, saturn_shader, spaceship_shader, sun_shader, venus_shader, vertex_shader,
 };
 use triangle::triangle;
 use vertex::Vertex;
@@ -462,6 +462,34 @@ fn render_spaceship(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_a
         }
     }
 }
+fn render_skybox(
+    framebuffer: &mut Framebuffer,
+    uniforms: &Uniforms,
+    skybox_texture: &image::RgbaImage,
+    skybox_vertices: &[Vertex],
+) {
+    for vertex in skybox_vertices {
+        let transformed = vertex_shader(vertex, uniforms);
+
+        let x = transformed.position.x as usize;
+        let y = transformed.position.y as usize;
+
+        if x < framebuffer.width && y < framebuffer.height {
+            // Mapeo de coordenadas de textura
+            let u = (vertex.tex_coords.x.clamp(0.0, 1.0) * skybox_texture.width() as f32) as u32;
+            let v = (vertex.tex_coords.y.clamp(0.0, 1.0) * skybox_texture.height() as f32) as u32;
+
+            if u >= skybox_texture.width() || v >= skybox_texture.height() {
+                continue;
+            }
+
+            let pixel = skybox_texture.get_pixel(u, v).0;
+            let color = color::Color::new(pixel[0], pixel[1], pixel[2]);
+            framebuffer.set_current_color(color.to_hex());
+            framebuffer.point(x, y, transformed.position.z);
+        }
+    }
+}
 
 fn main() {
     let window_width = 800;
@@ -474,8 +502,7 @@ fn main() {
     let mut fps = 0;
     let mut last_time = std::time::Instant::now();
     let window_title = format!("Sistema Solar - FPS: {}", fps);
-    const DISTANCE_SCALE: f32 = 2.0; 
-    
+    const DISTANCE_SCALE: f32 = 0.6;
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     let mut window = Window::new(
@@ -494,6 +521,59 @@ fn main() {
     let rotation_sun = Vec3::new(0.0, 0.0, 0.0);
     let obj_sun = Obj::load("assets/models/sun.obj").expect("Failed to load sun");
     let vertex_array_sun = obj_sun.get_vertex_array();
+
+    // Cargar textura del Skybox
+    let skybox_texture = ImageReader::open("assets/textures/skyblock.png")
+        .expect("Failed to load skybox texture")
+        .decode()
+        .expect("Failed to decode skybox texture")
+        .to_rgba8();
+    let (texture_width, texture_height) = skybox_texture.dimensions();
+
+    let skybox_vertices = vec![
+        // Cara frontal
+        Vertex::new(
+            Vec3::new(-1.0, -1.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec2::new(0.25, 0.33),
+        ),
+        Vertex::new(
+            Vec3::new(1.0, -1.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec2::new(0.5, 0.33),
+        ),
+        Vertex::new(
+            Vec3::new(1.0, 1.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec2::new(0.5, 0.66),
+        ),
+        Vertex::new(
+            Vec3::new(-1.0, 1.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec2::new(0.25, 0.66),
+        ),
+        // Cara trasera
+        Vertex::new(
+            Vec3::new(1.0, -1.0, -1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec2::new(0.75, 0.33),
+        ),
+        Vertex::new(
+            Vec3::new(-1.0, -1.0, -1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec2::new(1.0, 0.33),
+        ),
+        Vertex::new(
+            Vec3::new(-1.0, 1.0, -1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec2::new(1.0, 0.66),
+        ),
+        Vertex::new(
+            Vec3::new(1.0, 1.0, -1.0),
+            Vec3::new(0.0, 0.0, -1.0),
+            Vec2::new(0.75, 0.66),
+        ),
+    ];
 
     // Cámara inicial
     let mut camera = Camera::new(
@@ -532,6 +612,27 @@ fn main() {
 
         framebuffer.clear();
 
+        // Posición del skybox centrada en la cámara
+        let skybox_position = camera.eye;
+        let model_matrix_skybox =
+            create_model_matrix(skybox_position, 100.0, Vec3::new(0.0, 0.0, 0.0));
+        let uniforms_skybox = Uniforms {
+            model_matrix: model_matrix_skybox,
+            view_matrix: view_matrix.clone(),
+            projection_matrix: create_perspective_matrix(window_width as f32, window_height as f32),
+            viewport_matrix: create_viewport_matrix(
+                framebuffer_width as f32,
+                framebuffer_height as f32,
+            ),
+            time,
+        };
+        render_skybox(
+            &mut framebuffer,
+            &uniforms_skybox,
+            &skybox_texture,
+            &skybox_vertices,
+        );
+
         // Renderizar el Sol
         let model_matrix_sun = create_model_matrix(translation_sun, scale_sun, rotation_sun);
         let uniforms_sun = Uniforms {
@@ -558,7 +659,7 @@ fn main() {
         let vertex_array_mercury = obj_mercury.get_vertex_array();
 
         // Cálculo de la órbita y rotación de Mercurio
-        let mercury_x = orbit_radius_mercury * (time as f32 * orbit_speed_mercury).cos() ;
+        let mercury_x = orbit_radius_mercury * (time as f32 * orbit_speed_mercury).cos();
         let mercury_y = 0.0;
         let mercury_z = orbit_radius_mercury * (time as f32 * orbit_speed_mercury).sin();
         let translation_mercury = Vec3::new(mercury_x, mercury_y, mercury_z);
